@@ -31,3 +31,16 @@ main =
         prop_reverse_involutive
     ]
 ```
+
+Provides output similar to the following:
+
+```
+Test suite tasty-hedgehog-coverage-tests: RUNNING...
+tasty-hedgehog tests
+  reverse involutive:          OK
+    17.00% non-trivial
+```
+
+This allows you to see a distribution of the inputs when using property-based
+testing. Which may help craft better generators or see if failing test cases are
+all targeting a specific subset of your inputs.
