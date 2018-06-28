@@ -1,5 +1,7 @@
 # Tasty Hedgehog Coverage
 
+[![Build Status](https://travis-ci.org/qfpl/tasty-hedgehog-coverage.svg?branch=master)](https://travis-ci.org/qfpl/tasty-hedgehog-coverage)
+
 An addon for the property-based testing library that can provide a report on the
 break down of inputs. Similar to the `classify` function in [`QuickCheck`](https://hackage.haskell.org/package/QuickCheck-2.11.3/docs/Test-QuickCheck-Property.html#v:classify).
 
