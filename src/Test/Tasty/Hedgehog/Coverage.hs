@@ -16,10 +16,11 @@ import           GHC.Stack                     (HasCallStack,
 import           Control.Monad.IO.Class        (liftIO)
 import           Control.Monad.State           (MonadState, StateT (..), modify,
                                                 runStateT)
-import           Data.Maybe                    (fromMaybe)
-import Data.Monoid ((<>))
+
 import           Data.Map                      (Map)
 import qualified Data.Map                      as Map
+
+import           Data.Maybe                    (fromMaybe)
 
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
@@ -32,8 +33,9 @@ import           Hedgehog.Internal.Property    (PropertyConfig (..),
                                                 TestLimit (..), defaultConfig,
                                                 propertyShrinkLimit,
                                                 propertyTestLimit)
-import           Hedgehog.Internal.Report      (Progress (..), Report (..), TestCount (..), ShrinkCount (..),
-                                                Result (..))
+import           Hedgehog.Internal.Report      (Progress (..), Report (..),
+                                                Result (..), ShrinkCount (..),
+                                                TestCount (..))
 import qualified Hedgehog.Internal.Report      as Report
 import           Hedgehog.Internal.Runner      (checkReport)
 import qualified Hedgehog.Internal.Seed        as Seed

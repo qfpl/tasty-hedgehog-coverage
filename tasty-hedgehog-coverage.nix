@@ -1,5 +1,5 @@
 { mkDerivation, base, containers, hedgehog, mtl, stdenv, tagged
-, tasty, tasty-expected-failure, tasty-hedgehog, text
+, tasty, tasty-expected-failure, tasty-hedgehog, text, transformers
 , wl-pprint-annotated
 }:
 mkDerivation {
@@ -8,10 +8,11 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     base containers hedgehog mtl tagged tasty tasty-hedgehog text
-    wl-pprint-annotated
+    transformers wl-pprint-annotated
   ];
   testHaskellDepends = [
     base hedgehog tasty tasty-expected-failure
   ];
+  description = "Coverage tracking for Hedgehog Property-Based Testing via Tasty";
   license = stdenv.lib.licenses.bsd3;
 }

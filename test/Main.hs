@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Hedgehog
-import qualified Hedgehog.Gen as Gen
-import qualified Hedgehog.Range as Range
-import Test.Tasty
-import Test.Tasty.ExpectedFailure
-import Test.Tasty.Hedgehog.Coverage
+import           Hedgehog
+import qualified Hedgehog.Gen                 as Gen
+import qualified Hedgehog.Range               as Range
+import           Test.Tasty
+import           Test.Tasty.ExpectedFailure
+import           Test.Tasty.Hedgehog.Coverage
 
 genAlphaList :: Gen String
 genAlphaList =
