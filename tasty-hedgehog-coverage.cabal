@@ -4,7 +4,7 @@
 name:                tasty-hedgehog-coverage
 version:             0.1.0.0
 synopsis:            Coverage tracking for Hedgehog Property-Based Testing via Tasty.
--- description:         
+description:         Integrates with the Tasty testing suite and Hedgehog property-based testing and allows you to keep a tally of the inputs that meet certain criteria. Providing the summary on test completion.
 license:             BSD3
 license-file:        LICENCE
 author:              QFPL @ Data61
