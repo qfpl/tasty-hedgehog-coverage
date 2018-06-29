@@ -1,10 +1,18 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+-- | Provide some functionality for tracking the distribution of test inputs
+-- when using Hedgehog property-based testing.
 module Test.Tasty.Hedgehog.Coverage
-  ( Cover
+  (
+  -- * Data types
+    Cover (..)
+  , Tally (..)
+
+  -- * Test helpers
   , testPropertyCoverage
   , withCoverage
+
   -- * Coverage functions
   , classify
   , label
@@ -64,16 +72,22 @@ import           Test.Tasty.Hedgehog           (HedgehogDiscardLimit (..),
                                                 HedgehogShrinkRetries (..),
                                                 HedgehogTestLimit (..))
 
+-- |
+-- This is the type used to store the information about the inputs.
 newtype Tally = Tally
   { unTally :: Map Text Int
   }
   deriving (Eq, Show)
 
+-- | Gather the property name and the 'Cover' with the property to be tested.
+-- Tasty relies on this type
 data CoveredProperty = CoveredProperty
   { _coverName :: PropertyName
   , _coverProp :: Cover
   }
 
+-- | Equivalent to the 'Property' type from Hedgehog, but slightly modified for
+-- the purpose of enabling the classification functionality.
 data Cover = Cover
   { _coverageConf :: !PropertyConfig
   , _coverageProp :: PropertyT (StateT Tally IO) ()
@@ -88,7 +102,9 @@ data Cover = Cover
 --   classify (length xs > 50) "non-trivial"
 --   test_involutive reverse xs
 -- @
+--
 -- Which gives output similar to:
+--
 -- @
 --  reverse involutive:          OK
 --    18.00% non-trivial
@@ -103,6 +119,7 @@ classify b l = when b $
   modify (Tally . Map.alter (Just . maybe 1 (+1)) l . unTally)
 
 -- | Attach a simple label to a property.
+--
 -- @
 -- prop_reverse_reverse :: Cover
 -- prop_reverse_reverse = withCoverage $ do
@@ -110,7 +127,9 @@ classify b l = when b $
 --   label ("length of input is " ++ show (length xs))
 --   reverse (reverse xs) === xs
 -- @
+--
 -- Which gives output similar to:
+--
 -- @
 -- reverse involutive:          OK
 --     4.00% with a length of 0
@@ -137,15 +156,17 @@ label =
 --   collect (length xs)
 --   reverse (reverse xs) === xs
 -- @
+--
 -- Which gives output similar to:
+--
 -- @
 -- reverse involutive:          OK
---     8.00% ""
---     1.00% "AFkNJBLiWYEBFRyZhulpMkkqIvsDpLAmaYoFTnNNFfkrbPUqDIRUuZOFGohTfB"
---     1.00% "AWWfLCfmZPoydVYXwnFHyCEWztXanEzdoc"
---     1.00% "CJJVBGOeaIkLfcOUGV"
---     1.00% "CNrTsblqfEz"
---     1.00% "CxDqm"
+--     8.00% \"\"
+--     1.00% \"AFkNJBLiWYEBFRyZhulpMkkqIvsDpLAmaYoFTnNNFfkrbPUqDIRUuZOFGohTfB\"
+--     1.00% \"AWWfLCfmZPoydVYXwnFHyCEWztXanEzdoc\"
+--     1.00% \"CJJVBGOeaIkLfcOUGV\"
+--     1.00% \"CNrTsblqfEz\"
+--     1.00% \"CxDqm\"
 -- @
 --
 collect
@@ -157,6 +178,7 @@ collect
 collect =
   label . Text.pack . show
 
+-- | Simiar to the <https://hackage.haskell.org/package/hedgehog-0.6/docs/Hedgehog.html#v:property property> function in Hedgehog, this creates a 'Cover' that lets us track the required information.
 withCoverage
   :: HasCallStack
   => PropertyT (StateT Tally IO) ()
@@ -164,6 +186,7 @@ withCoverage
 withCoverage m =
   Cover defaultConfig $ withFrozenCallStack (evalM m)
 
+-- | Create a 'Test.Tasty.Providers.TestTree' using a 'Cover' property test.
 testPropertyCoverage
   :: T.TestName
   -> Cover
@@ -207,12 +230,13 @@ reportToProgress config (Report testsDone _ status) =
   let
     TestLimit testLimit     = propertyTestLimit config
     ShrinkLimit shrinkLimit = propertyShrinkLimit config
+
+    ratio'd :: Integral n => n -> Int -> Float
+    ratio'd x y = 1.0 * realToFrac (ratio x y)
   in
     case status of
-      Running ->
-        T.Progress "Running" (1.0 * realToFrac (ratio testsDone testLimit))
-      Shrinking fr ->
-        T.Progress "Shrinking" (1.0 * realToFrac (ratio (Report.failureShrinks fr) shrinkLimit))
+      Running      -> T.Progress "Running" (ratio'd testsDone testLimit)
+      Shrinking fr -> T.Progress "Shrinking" (ratio'd (Report.failureShrinks fr) shrinkLimit)
 
 reportOutput
   :: PropertyConfig
