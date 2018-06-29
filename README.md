@@ -1,3 +1,5 @@
+<img src="http://i.imgur.com/0h9dFhl.png" width="300px"/>
+
 # Tasty Hedgehog Coverage
 
 [![Build Status](https://travis-ci.org/qfpl/tasty-hedgehog-coverage.svg?branch=master)](https://travis-ci.org/qfpl/tasty-hedgehog-coverage)
