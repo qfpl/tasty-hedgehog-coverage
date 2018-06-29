@@ -17,6 +17,13 @@ module Test.Tasty.Hedgehog.Coverage
   , classify
   , label
   , collect
+
+  -- * Property Config Helpers
+  -- | These functions work exactly as their original Hedgehog counterparts, only modified to work with the 'Cover' type.
+  , withTests
+  , withRetries
+  , withDiscards
+  , withShrinks
   ) where
 
 import           Data.Typeable                 (Proxy (..))
@@ -35,10 +42,11 @@ import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 
 import           Hedgehog                      (evalM)
-import           Hedgehog.Internal.Property    (PropertyConfig (..),
+import           Hedgehog.Internal.Property    (DiscardLimit,
+                                                PropertyConfig (..),
                                                 PropertyName (..),
                                                 PropertyT (..),
-                                                ShrinkLimit (..),
+                                                ShrinkLimit (..), ShrinkRetries,
                                                 TestLimit (..), defaultConfig,
                                                 propertyShrinkLimit,
                                                 propertyTestLimit)
@@ -92,6 +100,38 @@ data Cover = Cover
   { _coverageConf :: !PropertyConfig
   , _coverageProp :: PropertyT (StateT Tally IO) ()
   }
+
+mapPropertyConfig :: (PropertyConfig -> PropertyConfig) -> Cover -> Cover
+mapPropertyConfig f cover = cover { _coverageConf = f (_coverageConf cover) }
+
+-- | Set the number of times a property should be executed before it is considered
+--   successful.
+--
+--   If you have a test that does not involve any generators and thus does not
+--   need to run repeatedly, you can use @withTests 1@ to define a property that
+--   will only be checked once.
+--
+withTests :: TestLimit -> Cover -> Cover
+withTests lim = mapPropertyConfig (\c -> c { propertyTestLimit = lim })
+
+-- | Set the number of times a property is allowed to discard before the test
+--   runner gives up.
+--
+withDiscards :: DiscardLimit -> Cover -> Cover
+withDiscards n = mapPropertyConfig $ \c -> c { propertyDiscardLimit = n }
+
+-- | Set the number of times a property is allowed to shrink before the test
+--   runner gives up and prints the counterexample.
+--
+withShrinks :: ShrinkLimit -> Cover -> Cover
+withShrinks n = mapPropertyConfig $ \c -> c { propertyShrinkLimit = n }
+
+-- | Set the number of times a property will be executed for each shrink before
+--   the test runner gives up and tries a different shrink. See 'ShrinkRetries'
+--   for more information.
+--
+withRetries :: ShrinkRetries -> Cover -> Cover
+withRetries n = mapPropertyConfig $ \c -> c { propertyShrinkRetries = n }
 
 -- | Records how many test cases satisfy a given condition.
 --

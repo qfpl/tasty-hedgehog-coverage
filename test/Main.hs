@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import           Hedgehog
+import           Hedgehog hiding (withTests)
 import qualified Hedgehog.Gen                 as Gen
 import qualified Hedgehog.Range               as Range
+
 import           Test.Tasty
 import           Test.Tasty.ExpectedFailure
 import           Test.Tasty.Hedgehog.Coverage
@@ -17,7 +18,7 @@ test_involutive f x =
   f (f x) === x
 
 prop_reverse_involutive :: Cover
-prop_reverse_involutive = withCoverage $ do
+prop_reverse_involutive = withTests 500 . withCoverage $ do
   xs <- forAll genAlphaList
   classify (length xs > 50) "non-trivial"
   test_involutive reverse xs
@@ -30,7 +31,8 @@ badReverse as  = reverse as
 prop_badReverse_involutive :: Cover
 prop_badReverse_involutive = withCoverage $ do
   xs <- forAll genAlphaList
-  classify (length xs < 50) "non-trivial"
+  classify (length xs < 10) "trivial"
+  classify (length xs > 10) "non-trivial"
   test_involutive badReverse xs
 
 main :: IO ()
