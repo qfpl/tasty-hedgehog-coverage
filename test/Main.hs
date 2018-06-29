@@ -19,9 +19,7 @@ test_involutive f x =
 prop_reverse_involutive :: Cover
 prop_reverse_involutive = withCoverage $ do
   xs <- forAll genAlphaList
-
   classify (length xs > 50) "non-trivial"
-
   test_involutive reverse xs
 
 badReverse :: [a] -> [a]
@@ -32,18 +30,11 @@ badReverse as  = reverse as
 prop_badReverse_involutive :: Cover
 prop_badReverse_involutive = withCoverage $ do
   xs <- forAll genAlphaList
-
-  let
-    len = length xs
-
-  classify (len <= 10) "trivial"
-  classify (len > 30 && len <= 40) "non-trivial"
-
+  classify (length xs < 50) "non-trivial"
   test_involutive badReverse xs
 
 main :: IO ()
-main =
-  defaultMain $
+main = defaultMain $
   testGroup "tasty-hedgehog-coverage tests"
     [ testPropertyCoverage
         "reverse involutive"

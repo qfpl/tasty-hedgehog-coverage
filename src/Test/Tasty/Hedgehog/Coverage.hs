@@ -7,12 +7,15 @@ module Test.Tasty.Hedgehog.Coverage
   , withCoverage
   -- * Coverage functions
   , classify
+  , label
+  , collect
   ) where
 
 import           Data.Typeable                 (Proxy (..))
 import           GHC.Stack                     (HasCallStack,
                                                 withFrozenCallStack)
 
+import           Control.Monad                 (when)
 import           Control.Monad.IO.Class        (liftIO)
 import           Control.Monad.State           (MonadState, StateT (..), modify,
                                                 runStateT)
@@ -33,7 +36,8 @@ import           Hedgehog.Internal.Property    (PropertyConfig (..),
                                                 TestLimit (..), defaultConfig,
                                                 propertyShrinkLimit,
                                                 propertyTestLimit)
-import           Hedgehog.Internal.Report      (Progress (..), Report (..),
+import           Hedgehog.Internal.Report      (FailureReport (FailureReport, failureShrinks),
+                                                Progress (..), Report (..),
                                                 Result (..), ShrinkCount (..),
                                                 TestCount (..))
 import qualified Hedgehog.Internal.Report      as Report
@@ -54,7 +58,9 @@ import           Test.Tasty.Hedgehog           (HedgehogDiscardLimit (..),
                                                 HedgehogShrinkRetries (..),
                                                 HedgehogTestLimit (..))
 
-newtype Tally = Tally (Map Text Int)
+newtype Tally = Tally
+  { unTally :: Map Text Int
+  }
   deriving (Eq, Show)
 
 data CoveredProperty = CoveredProperty
@@ -67,16 +73,100 @@ data Cover = Cover
   , _coverageProp :: PropertyT (StateT Tally IO) ()
   }
 
-classify :: MonadState Tally m => Bool -> Text -> m ()
-classify b l = if b
-  then modify (\(Tally t) -> Tally $ Map.alter (Just . maybe 1 (+1)) l t)
-  else modify (\(Tally t) -> Tally $ Map.alter (Just . fromMaybe 0) l t)
+-- | Records how many test cases satisfy a given condition.
+--
+-- @
+-- prop_reverse_involutive :: Cover
+-- prop_reverse_involutive = withCoverage $ do
+--   xs <- forAll $ Gen.list (Range.linear 0 100) Gen.alpha
+--   classify (length xs > 50) "non-trivial"
+--   test_involutive reverse xs
+-- @
+-- Which gives output similar to:
+-- @
+--  reverse involutive:          OK
+--    18.00% non-trivial
+-- @
+--
+classify
+  :: MonadState Tally m
+  => Bool                       -- ^ @True@ if this case should be included.
+  -> Text                       -- ^ The label for this input.
+  -> m ()
+classify b l = when b $
+  modify (Tally . Map.alter (Just . maybe 1 (+1)) l . unTally)
 
-withCoverage :: HasCallStack => PropertyT (StateT Tally IO) () -> Cover
-withCoverage = Cover defaultConfig . withFrozenCallStack . evalM
+-- | Attach a simple label to a property.
+-- @
+-- prop_reverse_reverse :: Cover
+-- prop_reverse_reverse = withCoverage $ do
+--   xs <- forAll $ Gen.list (Range.linear 0 100) Gen.alpha
+--   label ("length of input is " ++ show (length xs))
+--   reverse (reverse xs) === xs
+-- @
+-- Which gives output similar to:
+-- @
+-- reverse involutive:          OK
+--     4.00% with a length of 0
+--     7.00% with a length of 1
+--     3.00% with a length of 11
+--     2.00% with a length of 12
+--     2.00% with a length of 13
+--     ...
+-- @
+--
+label
+  :: MonadState Tally m
+  => Text                       -- ^ The label for the input.
+  -> m ()
+label =
+  classify True
 
-testPropertyCoverage :: T.TestName -> Cover -> T.TestTree
-testPropertyCoverage name cov = T.singleTest name (CoveredProperty (PropertyName name) cov)
+-- | Uses the input itself as the label, useful for recording test case distribution.
+--
+-- @
+-- prop_reverse_reverse :: Cover
+-- prop_reverse_reverse = withCoverage $ do
+--   xs <- forAll $ Gen.list (Range.linear 0 100) Gen.alpha
+--   collect (length xs)
+--   reverse (reverse xs) === xs
+-- @
+-- Which gives output similar to:
+-- @
+-- reverse involutive:          OK
+--     8.00% ""
+--     1.00% "AFkNJBLiWYEBFRyZhulpMkkqIvsDpLAmaYoFTnNNFfkrbPUqDIRUuZOFGohTfB"
+--     1.00% "AWWfLCfmZPoydVYXwnFHyCEWztXanEzdoc"
+--     1.00% "CJJVBGOeaIkLfcOUGV"
+--     1.00% "CNrTsblqfEz"
+--     1.00% "CxDqm"
+-- @
+--
+collect
+  :: ( MonadState Tally m
+     , Show a
+     )
+  => a                          -- ^ The input to collect.
+  -> m ()
+collect =
+  label . Text.pack . show
+
+withCoverage
+  :: HasCallStack
+  => PropertyT (StateT Tally IO) ()
+  -> Cover
+withCoverage m =
+  Cover defaultConfig $ withFrozenCallStack (evalM m)
+
+testPropertyCoverage
+  :: T.TestName
+  -> Cover
+  -> T.TestTree
+testPropertyCoverage name cov =
+  T.singleTest name (CoveredProperty (PropertyName name) cov)
+
+ratio :: Integral n => n -> Int -> Double
+ratio x y = fromIntegral x / fromIntegral y
 
 prettyTally
   :: PropertyConfig
@@ -88,20 +178,18 @@ prettyTally _config report (Tally tally) =
     TestCount testCount = reportTests report
 
     shrinkCount = case reportStatus report of
-      Failed fr -> case Report.failureShrinks fr of
-                     -- To account for the failed test that triggered the shrink?
-                     ShrinkCount n -> 1+n
-      _ -> 0
-
-    prettyPct = PP.text . printf "%.2f%%"
+      -- Account for the failed test that might have included our classified case,
+      -- otherwise numbers are skewed. I am not convinced this is correct though.
+      Failed FailureReport {failureShrinks = ShrinkCount n} -> 1 + n
+      -- We haven't had to shrink so there were no test failures so our
+      -- testCount is indicative of the total number of tests that were run.
+      _                                                     -> 0
 
     ntests = shrinkCount + testCount
 
-    ratio :: Integral n => n -> Int -> Double
-    ratio x y = 100 * (fromIntegral x / fromIntegral y)
-
     ppTally (l,t) =
-      prettyPct (ratio t ntests) <+> PP.text (Text.unpack l)
+      PP.text (printf "%.2f%%" (100.0 * ratio t ntests)) <+>
+      PP.text (Text.unpack l)
   in
     PP.vsep $ ppTally <$> Map.toList tally
 
@@ -111,16 +199,14 @@ reportToProgress
   -> T.Progress
 reportToProgress config (Report testsDone _ status) =
   let
-    TestLimit testLimit = propertyTestLimit config
+    TestLimit testLimit     = propertyTestLimit config
     ShrinkLimit shrinkLimit = propertyShrinkLimit config
-    ratio x y = 1.0 * fromIntegral x / fromIntegral y
   in
-    -- TODO add details for tests run / discarded / shrunk
     case status of
       Running ->
-        T.Progress "Running" (ratio testsDone testLimit)
+        T.Progress "Running" (1.0 * realToFrac (ratio testsDone testLimit))
       Shrinking fr ->
-        T.Progress "Shrinking" (ratio (Report.failureShrinks fr) shrinkLimit)
+        T.Progress "Shrinking" (1.0 * realToFrac (ratio (Report.failureShrinks fr) shrinkLimit))
 
 reportOutput
   :: PropertyConfig
@@ -130,7 +216,6 @@ reportOutput
   -> Report Result
   -> IO String
 reportOutput config showReplay name tally report@(Report _ _ status) = do
-  -- TODO add details for tests run / discarded / shrunk
   rpt <- Report.ppResult (Just (PropertyName name)) report
 
   let
@@ -140,18 +225,16 @@ reportOutput config showReplay name tally report@(Report _ _ status) = do
   pure $ case status of
     Failed fr -> do
       let
-        size = Report.failureSize fr
-        seed = Report.failureSeed fr
+        size = PP.text . show $ Report.failureSize fr
+        seed = PP.text . show $ Report.failureSeed fr
 
         replayStr = if showReplay
           then PP.text "Use"
-               <+> PP.squotes ("--hedgehog-replay" <+> PP.dquotes (PP.text (show size) <+> PP.text (show seed)))
+               <+> PP.squotes ("--hedgehog-replay" <+> PP.dquotes (size <+> seed))
                <+> "to reproduce"
           else mempty
 
-      toStr $ PP.align tal </> PP.line
-        <#> rpt
-        <#> replayStr
+      toStr $ PP.align tal </> PP.line <#> rpt <#> replayStr
 
     GaveUp -> "Gave up"
     OK     -> toStr tal
