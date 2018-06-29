@@ -12,8 +12,6 @@ module Test.Tasty.Hedgehog.Coverage
   ) where
 
 import           Data.Typeable                 (Proxy (..))
-import           GHC.Stack                     (HasCallStack,
-                                                withFrozenCallStack)
 
 import           Control.Monad                 (when)
 import           Control.Monad.IO.Class        (liftIO)
@@ -28,7 +26,7 @@ import           Data.Maybe                    (fromMaybe)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as Text
 
-import           Hedgehog
+import           Hedgehog                      (evalM)
 import           Hedgehog.Internal.Property    (PropertyConfig (..),
                                                 PropertyName (..),
                                                 PropertyT (..),
@@ -40,12 +38,20 @@ import           Hedgehog.Internal.Report      (FailureReport (FailureReport, fa
                                                 Progress (..), Report (..),
                                                 Result (..), ShrinkCount (..),
                                                 TestCount (..))
+
 import qualified Hedgehog.Internal.Report      as Report
 import           Hedgehog.Internal.Runner      (checkReport)
 import qualified Hedgehog.Internal.Seed        as Seed
 
+-- Hedgehog has the necessary CPP in place to handle older GHCs for these, I see
+-- no reason to duplicate their efforts. I'm already depending on internal
+-- modules so there is no increase in risk.
+import           Hedgehog.Internal.Source      (HasCallStack,
+                                                withFrozenCallStack)
+
 import           Text.PrettyPrint.Annotated.WL (Doc, (<#>), (<+>), (</>))
 import qualified Text.PrettyPrint.Annotated.WL as PP
+
 import           Text.Printf                   (printf)
 
 import           Test.Tasty.Options
